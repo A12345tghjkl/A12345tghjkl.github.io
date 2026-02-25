@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>【XX公司】产品选购中心</title>
+    <style>
+        /* 全局重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent; /* 去除微信点击高亮 */
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft Yahei", sans-serif;
+            background-color: #f8f9fa;
+            padding: 15px;
+        }
+
+        /* 顶部标题栏 */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 22px;
+            color: #222;
+            margin-bottom: 8px;
+        }
+        .header p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* 产品列表 - 自适应布局 */
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 18px;
+        }
+
+        /* 产品卡片 - 带hover动效 */
+        .product-card {
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.12);
+        }
+        .product-card:active {
+            transform: translateY(-2px);
+        }
+
+        /* 产品图片 */
+        .product-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 产品信息 */
+        .product-info {
+            padding: 12px;
+        }
+        .product-name {
+            font-size: 15px;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .product-tips {
+            font-size: 12px;
+            color: #ff6700;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .product-tips icon {
+            font-size: 12px;
+        }
+
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 60px 0;
+            color: #999;
+            font-size: 14px;
+        }
+
+        /* 跳转提示弹窗 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+        .modal-content {
+            background: #fff;
+            width: 85%;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .modal-icon {
+            font-size: 40px;
+            color: #ff6700;
+            margin-bottom: 15px;
+        }
+        .modal-title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .modal-desc {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .btn-copy {
+            background: #ff6700;
+            color: #fff;
+        }
+        .btn-close {
+            background: #eee;
+            color: #666;
+        }
+
+        /* 复制成功提示 */
+        .copy-tips {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部标题 -->
+    <div class="header">
+        <h1>XX公司产品选购中心</h1>
+        <p>点击产品图片，跳转抖音直接下单</p>
+    </div>
+
+    <!-- 产品列表容器 -->
+    <div class="product-grid" id="productGrid">
+        <div class="loading">产品加载中...</div>
+    </div>
+
+    <!-- 跳转提示弹窗 -->
+    <div class="modal" id="linkModal">
+        <div class="modal-content">
+            <div class="modal-icon">📱</div>
+            <div class="modal-title">前往抖音下单</div>
+            <div class="modal-desc" id="modalDesc">
+                微信暂不支持直接打开抖音链接<br>
+                复制链接后打开抖音即可下单
+            </div>
+            <div class="modal-btns">
+                <button class="modal-btn btn-copy" id="copyBtn">复制链接</button>
+                <button class="modal-btn btn-close" id="closeBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 复制成功提示 -->
+    <div class="copy-tips" id="copyTips">链接复制成功！</div>
+
+    <script>
+        // ====================== 【仅需修改这里的产品数据】 ======================
+        const PRODUCT_DATA = [
+            {
+                id: 1,
+                name: "智能水杯 - 恒温款", // 产品名称
+                imgUrl: "https://picsum.photos/400/300?random=1", // 产品图片链接（替换成你的）
+                douyinLink: "https://www.douyin.com/xxxx1" // 抖音下单链接（替换成你的）
+            },
+            {
+                id: 2,
+                name: "无线蓝牙耳机 - 降噪版",
+                imgUrl: "https://picsum.photos/400/300?random=2",
+                douyinLink: "https://www.douyin.com/xxxx2"
+            },
+            {
+                id: 3,
+                name: "运动手环 - 心率监测",
+                imgUrl: "https://picsum.photos/400/300?random=3",
+                douyinLink: "https://www.douyin.com/xxxx3"
+            },
+            // 新增产品：复制上面的对象，修改id、name、imgUrl、douyinLink即可
+            // {
+            //     id: 4,
+            //     name: "你的产品名称",
+            //     imgUrl: "你的产品图片链接",
+            //     douyinLink: "你的抖音下单链接"
+            // },
+        ];
+        // ====================== 【产品数据修改结束】 ======================
+
+        // DOM元素获取
+        const productGrid = document.getElementById('productGrid');
+        const linkModal = document.getElementById('linkModal');
+        const modalDesc = document.getElementById('modalDesc');
+        const copyBtn = document.getElementById('copyBtn');
+        const closeBtn = document.getElementById('closeBtn');
+        const copyTips = document.getElementById('copyTips');
+        
+        let currentLink = ""; // 存储当前要复制的链接
+
+        // 初始化产品列表
+        function initProducts() {
+            // 清空加载提示
+            productGrid.innerHTML = "";
+
+            // 无产品时提示
+            if (PRODUCT_DATA.length === 0) {
+                productGrid.innerHTML = '<div class="loading">暂无产品信息</div>';
+                return;
+            }
+
+            // 遍历生成产品卡片
+            PRODUCT_DATA.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <img class="product-img" src="${product.imgUrl}" alt="${product.name}" onerror="this.src='https://picsum.photos/400/300?fallback'">
+                    <div class="product-info">
+                        <div class="product-name">${product.name}</div>
+                        <div class="product-tips">
+                            <icon>👉</icon> 点击跳转抖音下单
+                        </div>
+                    </div>
+                `;
+
+                // 点击卡片打开弹窗
+                card.addEventListener('click', () => {
+                    currentLink = product.douyinLink;
+                    linkModal.style.display = 'flex';
+                });
+
+                productGrid.appendChild(card);
+            });
+        }
+
+        // 复制链接功能
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(currentLink);
+                // 显示复制成功提示
+                copyTips.style.display = 'block';
+                setTimeout(() => {
+                    copyTips.style.display = 'none';
+                }, 1500);
+                // 关闭弹窗
+                linkModal.style.display = 'none';
+            } catch (err) {
+                modalDesc.innerHTML = "复制失败！请手动复制链接：<br>" + currentLink;
+            }
+        });
+
+        // 关闭弹窗
+        closeBtn.addEventListener('click', () => {
+            linkModal.style.display = 'none';
+        });
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', initProducts);
+    </script>
+</body>
+</html>
