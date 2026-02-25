@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>微信扫码玩打地鼠</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: #f5d76e;
+            font-family: "PingFang SC", sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+        }
+        .game-title {
+            font-size: 24px;
+            color: #d35400;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            max-width: 350px;
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 90%;
+            max-width: 350px;
+            background: #8e44ad;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .hole {
+            width: 100%;
+            aspect-ratio: 1/1;
+            background: #34495e;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .mole {
+            position: absolute;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #e74c3c;
+            border-radius: 50%;
+            transition: bottom 0.2s ease;
+        }
+        .mole.active {
+            bottom: 0;
+        }
+        .btn-start {
+            margin-top: 20px;
+            padding: 10px 30px;
+            font-size: 18px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-start:active {
+            background: #219653;
+        }
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            font-size: 24px;
+        }
+        .game-over p {
+            margin-bottom: 20px;
+        }
+        .btn-restart {
+            padding: 8px 25px;
+            font-size: 16px;
+            background: #e67e22;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="game-title">打地鼠小游戏</h1>
+    <div class="game-info">
+        <div>分数: <span id="score">0</span></div>
+        <div>时间: <span id="time">30</span>s</div>
+    </div>
+    <div class="game-container" id="gameContainer">
+        <!-- 地鼠洞自动生成 -->
+    </div>
+    <button class="btn-start" id="startBtn">开始游戏</button>
+    <div class="game-over" id="gameOver">
+        <p>游戏结束！最终分数: <span id="finalScore">0</span></p>
+        <button class="btn-restart" id="restartBtn">再来一局</button>
+    </div>
+
+    <script>
+        // 游戏核心配置
+        const config = {
+            holeCount: 9, // 地鼠洞数量
+            timeLimit: 30, // 游戏时长（秒）
+            moleShowTime: 800, // 地鼠出现时长（毫秒）
+            moleInterval: 600, // 地鼠刷新间隔（毫秒）
+        };
+
+        // DOM元素
+        const gameContainer = document.getElementById('gameContainer');
+        const scoreEl = document.getElementById('score');
+        const timeEl = document.getElementById('time');
+        const startBtn = document.getElementById('startBtn');
+        const gameOverEl = document.getElementById('gameOver');
+        const finalScoreEl = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // 游戏状态
+        let score = 0;
+        let timeLeft = config.timeLimit;
+        let gameTimer = null;
+        let moleTimer = null;
+        let isPlaying = false;
+
+        // 初始化地鼠洞
+        function initHoles() {
+            gameContainer.innerHTML = '';
+            for (let i = 0; i < config.holeCount; i++) {
+                const hole = document.createElement('div');
+                hole.className = 'hole';
+                hole.dataset.index = i;
+                
+                const mole = document.createElement('div');
+                mole.className = 'mole';
+                hole.appendChild(mole);
+                
+                // 点击地鼠加分
+                mole.addEventListener('click', () => {
+                    if (isPlaying && mole.classList.contains('active')) {
+                        score++;
+                        scoreEl.textContent = score;
+                        mole.classList.remove('active');
+                    }
+                });
+
+                gameContainer.appendChild(hole);
+            }
+        }
+
+        // 随机显示地鼠
+        function showRandomMole() {
+            if (!isPlaying) return;
+            
+            // 先隐藏所有地鼠
+            const allMoles = document.querySelectorAll('.mole');
+            allMoles.forEach(mole => mole.classList.remove('active'));
+            
+            // 随机选一个地鼠显示
+            const randomIndex = Math.floor(Math.random() * config.holeCount);
+            const randomMole = allMoles[randomIndex];
+            randomMole.classList.add('active');
+            
+            // 一段时间后隐藏
+            setTimeout(() => {
+                randomMole.classList.remove('active');
+            }, config.moleShowTime);
+        }
+
+        // 开始游戏
+        function startGame() {
+            // 重置状态
+            score = 0;
+            timeLeft = config.timeLimit;
+            scoreEl.textContent = 0;
+            timeEl.textContent = timeLeft;
+            isPlaying = true;
+            startBtn.disabled = true;
+            
+            // 开始倒计时
+            gameTimer = setInterval(() => {
+                timeLeft--;
+                timeEl.textContent = timeLeft;
+                
+                // 时间到结束游戏
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+            
+            // 开始刷新地鼠
+            moleTimer = setInterval(showRandomMole, config.moleInterval);
+            showRandomMole(); // 立即显示第一个地鼠
+        }
+
+        // 结束游戏
+        function endGame() {
+            isPlaying = false;
+            clearInterval(gameTimer);
+            clearInterval(moleTimer);
+            
+            // 显示游戏结束弹窗
+            finalScoreEl.textContent = score;
+            gameOverEl.style.display = 'flex';
+            startBtn.disabled = false;
+            
+            // 隐藏所有地鼠
+            document.querySelectorAll('.mole').forEach(mole => mole.classList.remove('active'));
+        }
+
+        // 重启游戏
+        function restartGame() {
+            gameOverEl.style.display = 'none';
+            startGame();
+        }
+
+        // 初始化
+        window.addEventListener('load', () => {
+            initHoles();
+            startBtn.addEventListener('click', startGame);
+            restartBtn.addEventListener('click', restartGame);
+        });
+    </script>
+</body>
+</html>
