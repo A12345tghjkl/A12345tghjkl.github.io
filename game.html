@@ -25,6 +25,41 @@
             margin-bottom: 20px;
             text-align: center;
         }
+        /* 新增排行榜样式 */
+        .rank-container {
+            width: 90%;
+            max-width: 350px;
+            background: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .rank-title {
+            font-size: 18px;
+            color: #d35400;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .rank-list {
+            list-style: none;
+        }
+        .rank-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 16px;
+        }
+        .rank-item:last-child {
+            border-bottom: none;
+        }
+        .rank-name {
+            color: #2c3e50;
+        }
+        .rank-score {
+            color: #e74c3c;
+            font-weight: bold;
+        }
         .game-info {
             display: flex;
             justify-content: space-between;
@@ -106,10 +141,61 @@
             border-radius: 6px;
             cursor: pointer;
         }
+        /* 昵称输入弹窗样式 */
+        .nickname-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+        }
+        .nickname-box {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 300px;
+            text-align: center;
+        }
+        .nickname-title {
+            font-size: 20px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        .nickname-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .nickname-btn {
+            padding: 8px 25px;
+            font-size: 16px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <h1 class="game-title">打地鼠小游戏</h1>
+    
+    <!-- 新增排行榜区域 -->
+    <div class="rank-container">
+        <h2 class="rank-title">🥇 游戏排行榜</h2>
+        <ul class="rank-list" id="rankList"></ul>
+    </div>
+
     <div class="game-info">
         <div>分数: <span id="score">0</span></div>
         <div>时间: <span id="time">30</span>s</div>
@@ -118,18 +204,28 @@
         <!-- 地鼠洞自动生成 -->
     </div>
     <button class="btn-start" id="startBtn">开始游戏</button>
+    
+    <!-- 新增昵称输入弹窗 -->
+    <div class="nickname-modal" id="nicknameModal" style="display: none;">
+        <div class="nickname-box">
+            <h3 class="nickname-title">请输入你的昵称</h3>
+            <input type="text" class="nickname-input" id="nicknameInput" placeholder="比如：张三、游戏大神">
+            <button class="nickname-btn" id="confirmNickname">确认</button>
+        </div>
+    </div>
+
     <div class="game-over" id="gameOver">
         <p>游戏结束！最终分数: <span id="finalScore">0</span></p>
         <button class="btn-restart" id="restartBtn">再来一局</button>
     </div>
 
     <script>
-        // 游戏核心配置
+        // 游戏核心配置（已调慢速度）
         const config = {
             holeCount: 15, // 地鼠洞数量
             timeLimit: 30, // 游戏时长（秒）
-            moleShowTime: 1200, // 地鼠出现时长（毫秒）
-            moleInterval: 1200, // 地鼠刷新间隔（毫秒）
+            moleShowTime: 1300, // 地鼠出现时长（毫秒）
+            moleInterval: 1100, // 地鼠刷新间隔（毫秒）
         };
 
         // DOM元素
@@ -140,6 +236,11 @@
         const gameOverEl = document.getElementById('gameOver');
         const finalScoreEl = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
+        // 新增排行榜和昵称相关元素
+        const rankList = document.getElementById('rankList');
+        const nicknameModal = document.getElementById('nicknameModal');
+        const nicknameInput = document.getElementById('nicknameInput');
+        const confirmNicknameBtn = document.getElementById('confirmNickname');
 
         // 游戏状态
         let score = 0;
@@ -147,6 +248,73 @@
         let gameTimer = null;
         let moleTimer = null;
         let isPlaying = false;
+        let currentNickname = ''; // 当前玩家昵称
+
+        // 从本地存储读取排行榜数据（刷新不丢失）
+        function getRankData() {
+            const rankStr = localStorage.getItem('moleGameRank');
+            return rankStr ? JSON.parse(rankStr) : [];
+        }
+
+        // 保存排行榜数据到本地存储
+        function saveRankData(rankData) {
+            localStorage.setItem('moleGameRank', JSON.stringify(rankData));
+        }
+
+        // 渲染排行榜（按分数从高到低排序）
+        function renderRankList() {
+            const rankData = getRankData();
+            // 按分数降序排序
+            rankData.sort((a, b) => b.score - a.score);
+            
+            // 清空原有列表
+            rankList.innerHTML = '';
+            
+            // 无数据时提示
+            if (rankData.length === 0) {
+                rankList.innerHTML = '<li class="rank-item"><span class="rank-name">暂无玩家记录</span><span class="rank-score">-</span></li>';
+                return;
+            }
+
+            // 渲染排名列表
+            rankData.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = 'rank-item';
+                // 前3名加特殊标识
+                let rankIcon = '';
+                if (index === 0) rankIcon = '🥇';
+                else if (index === 1) rankIcon = '🥈';
+                else if (index === 2) rankIcon = '🥉';
+                else rankIcon = `${index+1}名`;
+
+                li.innerHTML = `
+                    <span class="rank-name">${rankIcon} ${item.nickname}</span>
+                    <span class="rank-score">${item.score}分</span>
+                `;
+                rankList.appendChild(li);
+            });
+        }
+
+        // 新增玩家分数到排行榜
+        function addScoreToRank(nickname, score) {
+            const rankData = getRankData();
+            // 添加新记录
+            rankData.push({ nickname, score });
+            // 保存并重新渲染
+            saveRankData(rankData);
+            renderRankList();
+        }
+
+        // 显示昵称输入弹窗
+        function showNicknameModal() {
+            nicknameModal.style.display = 'flex';
+            nicknameInput.focus(); // 自动聚焦输入框
+        }
+
+        // 隐藏昵称输入弹窗
+        function hideNicknameModal() {
+            nicknameModal.style.display = 'none';
+        }
 
         // 初始化地鼠洞
         function initHoles() {
@@ -192,7 +360,7 @@
             }, config.moleShowTime);
         }
 
-        // 开始游戏
+        // 开始游戏（新增昵称验证）
         function startGame() {
             // 重置状态
             score = 0;
@@ -218,11 +386,14 @@
             showRandomMole(); // 立即显示第一个地鼠
         }
 
-        // 结束游戏
+        // 结束游戏（新增记录分数）
         function endGame() {
             isPlaying = false;
             clearInterval(gameTimer);
             clearInterval(moleTimer);
+            
+            // 记录当前玩家分数到排行榜
+            addScoreToRank(currentNickname, score);
             
             // 显示游戏结束弹窗
             finalScoreEl.textContent = score;
@@ -236,14 +407,41 @@
         // 重启游戏
         function restartGame() {
             gameOverEl.style.display = 'none';
-            startGame();
+            // 重启时重新输入昵称
+            showNicknameModal();
         }
 
         // 初始化
         window.addEventListener('load', () => {
             initHoles();
-            startBtn.addEventListener('click', startGame);
+            renderRankList(); // 页面加载时显示排行榜
+
+            // 开始游戏前先输入昵称
+            startBtn.addEventListener('click', () => {
+                showNicknameModal();
+            });
+
+            // 确认昵称后开始游戏
+            confirmNicknameBtn.addEventListener('click', () => {
+                const nickname = nicknameInput.value.trim();
+                if (!nickname) {
+                    alert('昵称不能为空哦！');
+                    return;
+                }
+                currentNickname = nickname;
+                hideNicknameModal();
+                startGame(); // 昵称确认后才真正开始游戏
+            });
+
+            // 重启游戏
             restartBtn.addEventListener('click', restartGame);
+
+            // 按回车也能确认昵称
+            nicknameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    confirmNicknameBtn.click();
+                }
+            });
         });
     </script>
 </body>
